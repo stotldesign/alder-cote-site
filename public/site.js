@@ -46,41 +46,57 @@ class DCLogic {
   };
 })();
 
-/* page transition: a link marked data-zoom pulls the page into its video until it fills the window, a full-window copy of
-   the same video takes over at the same moment, and the next page picks that video up where it left off */
+/* page transition: clicking a link marked data-zoom lifts its playing video out of the photo and grows it, straightening,
+   until it fills the window exactly as the next page shows it; the next page opens on that same frame and plays on */
 (function () {
-  const KEY = 'ac-zoom';
+  const KEY = 'ac-zoom', EASE = 'cubic-bezier(.65,0,.2,1)', DUR = 950;
+  try { const st = document.createElement('style'); st.textContent = '@view-transition{navigation:auto}'; document.head.appendChild(st); } catch (x) {}
   document.addEventListener('click', (e) => {
     const a = e.target.closest && e.target.closest('a[data-zoom]');
     if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const v = a.querySelector('video'); if (!v) return;
     e.preventDefault();
-    const href = a.getAttribute('href'), v = a.querySelector('video'), r = a.getBoundingClientRect(), vw = innerWidth, vh = innerHeight;
-    const s = Math.max(vw / r.width, vh / r.height) * 1.12, cx = r.left + r.width / 2, cy = r.top + r.height / 2, b = document.body;
-    b.style.transformOrigin = cx + 'px ' + cy + 'px';
-    b.style.transition = 'transform 1s cubic-bezier(.7,0,.2,1)';
-    let full = null;
-    if (v) {
-      full = document.createElement('video'); full.className = 'ac-veil';
-      full.src = v.currentSrc || v.src; full.muted = true; full.playsInline = true; full.loop = true;
-      full.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;object-fit:cover;background:#111111;opacity:0;transition:opacity .3s ease .72s;z-index:2147483647;pointer-events:none';
-      try { full.currentTime = v.currentTime; } catch (x) {}
-      document.documentElement.appendChild(full); const p = full.play(); if (p && p.catch) p.catch(() => {});
-    }
+    const href = a.getAttribute('href'), vw = innerWidth, vh = innerHeight;
+    const host = document.getElementById('app'), z = parseFloat(getComputedStyle(host).zoom) || 1;
+    const box = a.getBoundingClientRect(), w = a.offsetWidth * z, h = a.offsetHeight * z;
+    const m = getComputedStyle(a).transform, ang = m && m !== 'none' ? Math.atan2(+m.split(',')[1], +m.split('(')[1].split(',')[0]) : 0;
+    const cx = box.left + box.width / 2, cy = box.top + box.height / 2;
+    // dark behind, page pushes in a little
+    const back = document.createElement('div'); back.className = 'ac-veil';
+    back.style.cssText = 'position:fixed;inset:0;background:#111111;opacity:0;transition:opacity .7s ease .1s;z-index:2147483646;pointer-events:none';
+    // the frame that grows: starts exactly over the photo, with its white edge and its tilt
+    const frame = document.createElement('div'); frame.className = 'ac-veil';
+    frame.style.cssText = 'position:fixed;left:' + (cx - w / 2) + 'px;top:' + (cy - h / 2) + 'px;width:' + w + 'px;height:' + h + 'px;transform:rotate(' + ang + 'rad);' +
+      'border:' + Math.max(1, 2 * z) + 'px solid #FFFFFF;box-sizing:border-box;overflow:hidden;background:#111111;z-index:2147483647;pointer-events:none;' +
+      'transition:left ' + DUR + 'ms ' + EASE + ',top ' + DUR + 'ms ' + EASE + ',width ' + DUR + 'ms ' + EASE + ',height ' + DUR + 'ms ' + EASE + ',transform ' + DUR + 'ms ' + EASE + ',border-width ' + DUR + 'ms ' + EASE;
+    document.documentElement.appendChild(back); document.documentElement.appendChild(frame);
+    // move the playing video itself, so not a single frame is lost
+    v.style.cssText = 'display:block;width:100%;height:100%;object-fit:cover;transform:none;transition:none';
+    frame.appendChild(v); v.muted = true; const p = v.play(); if (p && p.catch) p.catch(() => {});
+    const b = document.body; b.style.transformOrigin = cx + 'px ' + cy + 'px'; b.style.transition = 'transform ' + DUR + 'ms ' + EASE;
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      b.style.transform = 'translate(' + (vw / 2 - cx) + 'px,' + (vh / 2 - cy) + 'px) scale(' + s + ')';
-      if (full) full.style.opacity = '1';
+      frame.style.left = '0px'; frame.style.top = '0px'; frame.style.width = vw + 'px'; frame.style.height = vh + 'px';
+      frame.style.transform = 'rotate(0rad)'; frame.style.borderWidth = '0px'; back.style.opacity = '1'; b.style.transform = 'scale(1.12)';
     }));
     setTimeout(() => {
-      try { sessionStorage.setItem(KEY, JSON.stringify({ t: full ? full.currentTime : 0, at: Date.now() })); } catch (x) {}
+      const d = { t: v.currentTime, at: Date.now(), still: '' };
+      try { const c = document.createElement('canvas'), k = Math.min(1, 1280 / (v.videoWidth || 1280)); c.width = Math.round((v.videoWidth || 1280) * k); c.height = Math.round((v.videoHeight || 720) * k);
+        c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); d.still = c.toDataURL('image/jpeg', 0.82); } catch (x) {}
+      try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (x) { try { d.still = ''; sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (y) {} }
       location.href = href;
-    }, 1060);
+    }, DUR + 40);
   });
-  window.addEventListener('pageshow', (e) => { if (!e.persisted) return; document.body.style.transform = ''; document.body.style.transition = ''; document.querySelectorAll('.ac-veil').forEach((n) => n.remove()); });
+  window.addEventListener('pageshow', (e) => { if (e.persisted && document.querySelector('.ac-veil')) location.reload(); });
   window.acArrive = (host) => {
     let d = null; try { d = JSON.parse(sessionStorage.getItem(KEY) || 'null'); sessionStorage.removeItem(KEY); } catch (x) {}
     if (!d) return;
     const v = host.querySelector('video'); if (!v) return;
+    if (d.still) v.poster = d.still;                                   // first paint is the very frame we zoomed into
     const seek = () => { const t = d.t + (Date.now() - d.at) / 1000; try { v.currentTime = v.duration ? t % v.duration : t; } catch (x) {} const p = v.play(); if (p && p.catch) p.catch(() => {}); };
     if (v.readyState >= 1) seek(); else v.addEventListener('loadedmetadata', seek, { once: true });
+    const root = host.firstElementChild; if (!root) return;           // the words come in over the picture
+    const rest = [...root.children].filter((n) => n !== v && !n.contains(v));
+    rest.forEach((n) => { n.style.transition = 'none'; n.style.opacity = '0'; });
+    requestAnimationFrame(() => requestAnimationFrame(() => rest.forEach((n) => { n.style.transition = 'opacity .8s ease .15s'; n.style.opacity = '1'; })));
   };
 })();
