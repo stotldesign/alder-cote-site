@@ -1,9 +1,13 @@
-// Cloudflare Workers config: a static site, every file comes from public/.
+// Cloudflare Workers config. Every file comes from public/; videos pass through
+// src/worker.js first so they can be streamed in pieces (Safari / iPhone need this).
 {
   "name": "alder-cote-site",
+  "main": "src/worker.js",
   "compatibility_date": "2025-11-01",
   "assets": {
     "directory": "./public",
-    "not_found_handling": "404-page"
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/*.mp4"]
   }
 }
