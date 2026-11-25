@@ -1,0 +1,9 @@
+// Cloudflare Workers config: a static site, every file comes from public/.
+{
+  "name": "alder-cote-site",
+  "compatibility_date": "2025-11-01",
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "404-page"
+  }
+}
