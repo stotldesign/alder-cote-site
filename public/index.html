@@ -32,7 +32,7 @@ body{margin:0}
 .draw path{stroke-dasharray:1700;animation:draw 5s steps(32) infinite}
 .ob{position:absolute;font-family:Arial,Helvetica,sans-serif;text-decoration:none;line-height:1;border:2px solid #111111;border-radius:50%;box-sizing:border-box;z-index:7;display:flex;align-items:center;justify-content:center;white-space:nowrap}
 .clip:active .vid{opacity:1}
-</style>
+html.fit,html.fit body{height:100%;overflow:hidden}html.fit body{display:flex;align-items:center;justify-content:center}html.fit #app{margin:0}</style>
 <script src="./site.js"></script>
 <div id="app"></div>
 <script type="text/x-template" id="tpl0"><div style="width: 1440px; height: 900px; position: relative; background: #FAF8F3; color: #111111; overflow: hidden">
@@ -83,4 +83,4 @@ class C1 extends DCLogic {
 }
 
 </script>
-<script>if (document.documentElement.clientWidth < 700) dcBoot(C1, "tpl1", 390); else dcBoot(C0, "tpl0", 1440);</script>
+<script>if (document.documentElement.clientWidth < 700) dcBoot(C1, "tpl1", 390); else { document.documentElement.classList.add("fit"); dcBoot(C0, "tpl0", 1440, 900); }</script>

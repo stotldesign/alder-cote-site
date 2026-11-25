@@ -16,7 +16,7 @@ class DCLogic {
     if (ac.length !== bc.length) { a.innerHTML = b.innerHTML; return; }
     for (let i = 0; i < ac.length; i++) patch(ac[i], bc[i]);
   }
-  window.dcBoot = function (Component, tplId, width) {
+  window.dcBoot = function (Component, tplId, width, height) {
     const host = document.getElementById('app');
     const src = document.getElementById(tplId).textContent
       .replace(/\s(on[A-Za-z]+)="\{\{\s*([\w.$]+)\s*\}\}"/g, (m, ev, k) => ` data-ev-${ev.slice(2).toLowerCase()}="${k}"`)
@@ -38,7 +38,8 @@ class DCLogic {
         if (a.length !== b.length) host.innerHTML = s; else for (let i = 0; i < a.length; i++) patch(a[i], b[i]); }
       bind();
     };
-    const fit = () => { if (width) host.style.zoom = Math.min(1, document.documentElement.clientWidth / width); };
+    const fit = () => { if (!width) return; const d = document.documentElement;
+      host.style.zoom = height ? Math.min(1, d.clientWidth / width, d.clientHeight / height) : Math.min(1, d.clientWidth / width); };
     fit(); window.addEventListener('resize', fit);
     c.__r();
   };
