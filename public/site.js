@@ -46,29 +46,41 @@ class DCLogic {
   };
 })();
 
-/* page transition: a link marked data-zoom pulls the whole page into itself, then the next page settles out of the zoom */
+/* page transition: a link marked data-zoom pulls the page into its video until it fills the window, a full-window copy of
+   the same video takes over at the same moment, and the next page picks that video up where it left off */
 (function () {
   const KEY = 'ac-zoom';
   document.addEventListener('click', (e) => {
     const a = e.target.closest && e.target.closest('a[data-zoom]');
     if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
-    const href = a.getAttribute('href'), r = a.getBoundingClientRect(), vw = innerWidth, vh = innerHeight;
-    const s = Math.max(vw / r.width, vh / r.height) * 1.18, cx = r.left + r.width / 2, cy = r.top + r.height / 2, b = document.body;
+    const href = a.getAttribute('href'), v = a.querySelector('video'), r = a.getBoundingClientRect(), vw = innerWidth, vh = innerHeight;
+    const s = Math.max(vw / r.width, vh / r.height) * 1.12, cx = r.left + r.width / 2, cy = r.top + r.height / 2, b = document.body;
     b.style.transformOrigin = cx + 'px ' + cy + 'px';
-    b.style.transition = 'transform 1.05s cubic-bezier(.7,0,.2,1)';
-    const veil = document.createElement('div'); veil.className = 'ac-veil';
-    veil.style.cssText = 'position:fixed;inset:0;background:#111111;opacity:0;transition:opacity .32s ease .78s;z-index:2147483647;pointer-events:none';
-    document.documentElement.appendChild(veil);
-    requestAnimationFrame(() => requestAnimationFrame(() => { b.style.transform = 'translate(' + (vw / 2 - cx) + 'px,' + (vh / 2 - cy) + 'px) scale(' + s + ')'; veil.style.opacity = '1'; }));
-    try { sessionStorage.setItem(KEY, '1'); } catch (x) {}
-    setTimeout(() => { location.href = href; }, 1120);
+    b.style.transition = 'transform 1s cubic-bezier(.7,0,.2,1)';
+    let full = null;
+    if (v) {
+      full = document.createElement('video'); full.className = 'ac-veil';
+      full.src = v.currentSrc || v.src; full.muted = true; full.playsInline = true; full.loop = true;
+      full.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;object-fit:cover;background:#111111;opacity:0;transition:opacity .3s ease .72s;z-index:2147483647;pointer-events:none';
+      try { full.currentTime = v.currentTime; } catch (x) {}
+      document.documentElement.appendChild(full); const p = full.play(); if (p && p.catch) p.catch(() => {});
+    }
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      b.style.transform = 'translate(' + (vw / 2 - cx) + 'px,' + (vh / 2 - cy) + 'px) scale(' + s + ')';
+      if (full) full.style.opacity = '1';
+    }));
+    setTimeout(() => {
+      try { sessionStorage.setItem(KEY, JSON.stringify({ t: full ? full.currentTime : 0, at: Date.now() })); } catch (x) {}
+      location.href = href;
+    }, 1060);
   });
-  window.addEventListener('pageshow', (e) => { if (!e.persisted) return; document.body.style.transform = ''; document.body.style.transition = ''; document.querySelectorAll('.ac-veil').forEach((v) => v.remove()); });
+  window.addEventListener('pageshow', (e) => { if (!e.persisted) return; document.body.style.transform = ''; document.body.style.transition = ''; document.querySelectorAll('.ac-veil').forEach((n) => n.remove()); });
   window.acArrive = (host) => {
-    let on = false; try { on = sessionStorage.getItem(KEY) === '1'; sessionStorage.removeItem(KEY); } catch (x) {}
-    if (!on) return;
-    host.style.transition = 'none'; host.style.transform = 'scale(1.14)'; host.style.opacity = '0';
-    requestAnimationFrame(() => requestAnimationFrame(() => { host.style.transition = 'transform 1.1s cubic-bezier(.16,.84,.24,1), opacity .7s ease'; host.style.transform = 'none'; host.style.opacity = '1'; }));
+    let d = null; try { d = JSON.parse(sessionStorage.getItem(KEY) || 'null'); sessionStorage.removeItem(KEY); } catch (x) {}
+    if (!d) return;
+    const v = host.querySelector('video'); if (!v) return;
+    const seek = () => { const t = d.t + (Date.now() - d.at) / 1000; try { v.currentTime = v.duration ? t % v.duration : t; } catch (x) {} const p = v.play(); if (p && p.catch) p.catch(() => {}); };
+    if (v.readyState >= 1) seek(); else v.addEventListener('loadedmetadata', seek, { once: true });
   };
 })();
