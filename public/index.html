@@ -34,7 +34,7 @@ html.fit,html.fit body{height:100%;overflow:hidden}html.fit body{display:flex;al
 <script type="text/x-template" id="tpl0"><div style="width: 1440px; height: 900px; position: relative; background: #FCFBF7; color: #111111; overflow: hidden"><div style="position: absolute; inset: 0; transform: translateY(-36px)">
 <svg class="draw" width="3840" height="900" viewBox="-1200 0 3840 900" style="position: absolute; left: -1200px; top: 0; pointer-events: none"><g fill="none" stroke="#111111" stroke-width="1.3"><path d="M-1200 610 C -700 610, -220 572, 0 560 C220 548, 360 470, 620 452 S 1040 500, 1440 330 C 1840 160, 2200 120, 2640 110"/><path d="M-1200 620 C -700 620, -220 582, 0 570 C220 558, 360 480, 620 462 S 1040 510, 1440 340 C 1840 170, 2200 130, 2640 120"/><path d="M-1200 630 C -700 630, -220 592, 0 580 C220 568, 360 490, 620 472 S 1040 520, 1440 350 C 1840 180, 2200 140, 2640 130"/><path d="M-1200 640 C -700 640, -220 602, 0 590 C220 578, 360 500, 620 482 S 1040 530, 1440 360 C 1840 190, 2200 150, 2640 140"/><path d="M-1200 650 C -700 650, -220 612, 0 600 C220 588, 360 510, 620 492 S 1040 540, 1440 370 C 1840 200, 2200 160, 2640 150"/></g></svg><div style="position: absolute; left: 300px; top: 336px; width: 520px; height: 312px; transform: rotate(-2deg); z-index: 2"><img src="./land-bears.jpg" alt="" style="display: block; width: 100%; height: 100%; object-fit: cover"></div><svg width="30" height="20" viewBox="0 0 28 18" style="position: absolute; left: 930px; top: 188px; transform: rotate(3deg); z-index: 6"><path d="M2 16 A12 12 0 0 1 26 16" fill="none" stroke="#111111" stroke-width="1.6"/><circle cx="14" cy="13" r="2.1" fill="#111111"/></svg><a onMouseEnter="{{eyeIn}}" onMouseLeave="{{eyeOut}}" href="songs.html" aria-label="songs" class="clip" style="left: 774px; top: 220px; width: 336px; height: 445px; transform: rotate(3deg); z-index: 3; display: block">
     <img class="still" src="./land-face.jpg" alt="">
-    <div class="vid" style="opacity: {{eyeO}}"><video ref="{{eyeRef}}" style="transform: scale({{eyeS}})" src="./eye.mp4" poster="./land-face.jpg" playsinline loop preload="auto"></video></div>
+    <div class="vid" style="opacity: {{eyeO}}"><video ref="{{eyeRef}}" style="transform: scale({{eyeS}})" src="./eye.mp4" poster="./land-face.jpg" muted playsinline loop preload="auto"></video></div>
   </a><a href="#" class="ob" style="left: 296px; top: 272px; width: 116px; height: 54px; font-size: 15px; background: #4FB848; color: #111111; transform: rotate(-5deg)">spotify</a><a href="#" class="ob" style="left: 404px; top: 290px; width: 160px; height: 56px; font-size: 15px; background: #F2C230; color: #111111; transform: rotate(3deg)">apple music</a><a href="#" class="ob" style="left: 556px; top: 270px; width: 64px; height: 50px; font-size: 15px; background: #F2163C; color: #FCFBF7; transform: rotate(-2deg)">ig</a><a href="#" class="ob" style="left: 612px; top: 292px; width: 74px; height: 52px; font-size: 15px; background: #0000EE; color: #FCFBF7; transform: rotate(6deg)">tok</a><div style="position: absolute; left: 252px; top: 638px; width: 176px; background: #D6DC4F; padding: 9px 10px; box-sizing: border-box; transform: rotate(-4deg); z-index: 5; display: flex; gap: 10px; align-items: flex-end">
       <p style="margin: 0; font-family: 'Times New Roman', Times, serif; font-size: 15px; line-height: 1.15"><i>take what i have</i> — play it on ur car speakers. <a href="take-what-i-have.html" style="color: #0000EE">listen</a></p>
       <span style="display: inline-flex; flex-direction: column; align-items: center; font-family: 'Times New Roman', Times, serif; font-weight: 700; font-size: 13px; line-height: 0.82"><span>10</span><span>8</span></span>
@@ -44,15 +44,18 @@ html.fit,html.fit body{height:100%;overflow:hidden}html.fit body{display:flex;al
 class C0 extends DCLogic {
   renderVals() {
     const on = !!this.state.eyeOn;
+    const vid = (e) => (e && e.currentTarget && e.currentTarget.querySelector && e.currentTarget.querySelector('video')) || this.eye;
+    const show = () => { if (this.hov && !this.state.eyeOn) this.setState({ eyeOn: true }); };
     return {
       eyeO: on ? 1 : 0, eyeS: on ? 1 : 1.06,
-      eyeRef: (el) => { if (!el || this.eye === el) return; this.eye = el;
-        el.addEventListener('playing', () => { if (this.hov) this.setState({ eyeOn: true }); }); },
-      eyeIn: () => { const e = this.eye; this.hov = true; if (!e) return; clearTimeout(this.tOut);
-        if (!e.paused && !e.ended) { this.setState({ eyeOn: true }); return; }
-        try { e.currentTime = 0; } catch (x) {} e.muted = false;
-        const p = e.play(); if (p && p.catch) p.catch(() => { e.muted = true; e.play(); }); },
-      eyeOut: () => { this.hov = false; this.setState({ eyeOn: false });
+      eyeRef: (el) => { if (el) this.eye = el; },
+      eyeIn: (e) => { const v = vid(e); this.hov = true; clearTimeout(this.tOut); if (!v) return; this.eye = v;
+        v.muted = true; v.defaultMuted = true;
+        if (v.paused || v.ended) { try { v.currentTime = 0; } catch (x) {} }
+        const p = v.play(); if (p && p.then) p.then(show, show);
+        v.addEventListener('playing', show, { once: true });
+        clearTimeout(this.tShow); this.tShow = setTimeout(show, 350); },
+      eyeOut: () => { this.hov = false; clearTimeout(this.tShow); this.setState({ eyeOn: false });
         clearTimeout(this.tOut); this.tOut = setTimeout(() => { if (!this.hov && this.eye) this.eye.pause(); }, 700); },
     };
   }
@@ -63,7 +66,7 @@ class C0 extends DCLogic {
 <svg class="draw" width="390" height="844" viewBox="0 0 390 844" style="position: absolute; inset: 0; pointer-events: none; transform: translateY(-80px)"><g fill="none" stroke="#111111" stroke-width="1.1"><path d="M0 470 C90 462, 150 430, 220 426 S 330 440, 390 380"/><path d="M0 478 C90 470, 150 438, 220 434 S 330 448, 390 388"/><path d="M0 486 C90 478, 150 446, 220 442 S 330 456, 390 396"/><path d="M0 494 C90 486, 150 454, 220 450 S 330 464, 390 404"/><path d="M0 502 C90 494, 150 462, 220 458 S 330 472, 390 412"/></g></svg>
 <div style="position: absolute; inset: 0; transform: translateY(-80px) scale(0.8); transform-origin: 195px 440px"><div style="position: absolute; left: 22px; top: 452px; width: 310px; height: 185px; transform: rotate(-2deg); z-index: 2"><img src="./land-bears.jpg" alt="" style="display: block; width: 100%; height: 100%; object-fit: cover"></div><svg width="24" height="16" viewBox="0 0 28 18" style="position: absolute; left: 258px; top: 168px; transform: rotate(3deg); z-index: 6"><path d="M2 16 A12 12 0 0 1 26 16" fill="none" stroke="#111111" stroke-width="1.6"/><circle cx="14" cy="13" r="2.1" fill="#111111"/></svg><a onTouchStart="{{eyeIn}}" onMouseEnter="{{eyeIn}}" onMouseLeave="{{eyeOut}}" href="songs.html" aria-label="songs" class="clip" style="left: 140px; top: 192px; width: 228px; height: 302px; transform: rotate(3deg); z-index: 3; display: block">
     <img class="still" src="./land-face.jpg" alt="">
-    <div class="vid" style="opacity: {{eyeO}}"><video ref="{{eyeRef}}" style="transform: scale({{eyeS}})" src="./eye.mp4" poster="./land-face.jpg" playsinline loop preload="auto"></video></div>
+    <div class="vid" style="opacity: {{eyeO}}"><video ref="{{eyeRef}}" style="transform: scale({{eyeS}})" src="./eye.mp4" poster="./land-face.jpg" muted playsinline loop preload="auto"></video></div>
   </a><a href="#" class="ob" style="left: 16px; top: 112px; width: 92px; height: 44px; font-size: 13px; background: #4FB848; color: #111111; transform: rotate(-5deg)">spotify</a><a href="#" class="ob" style="left: 98px; top: 124px; width: 128px; height: 46px; font-size: 13px; background: #F2C230; color: #111111; transform: rotate(3deg)">apple music</a><a href="#" class="ob" style="left: 220px; top: 108px; width: 52px; height: 40px; font-size: 13px; background: #F2163C; color: #FCFBF7; transform: rotate(-2deg)">ig</a><a href="#" class="ob" style="left: 264px; top: 122px; width: 60px; height: 42px; font-size: 13px; background: #0000EE; color: #FCFBF7; transform: rotate(6deg)">tok</a><div style="position: absolute; left: 16px; top: 638px; width: 150px; background: #D6DC4F; padding: 8px 9px; box-sizing: border-box; transform: rotate(-4deg); z-index: 5; display: flex; gap: 10px; align-items: flex-end">
       <p style="margin: 0; font-family: 'Times New Roman', Times, serif; font-size: 13px; line-height: 1.15"><i>take what i have</i> — play it on ur car speakers. <a href="take-what-i-have.html" style="color: #0000EE">listen</a></p>
       <span style="display: inline-flex; flex-direction: column; align-items: center; font-family: 'Times New Roman', Times, serif; font-weight: 700; font-size: 11px; line-height: 0.82"><span>10</span><span>8</span></span>
@@ -74,15 +77,18 @@ class C0 extends DCLogic {
 class C1 extends DCLogic {
   renderVals() {
     const on = !!this.state.eyeOn;
+    const vid = (e) => (e && e.currentTarget && e.currentTarget.querySelector && e.currentTarget.querySelector('video')) || this.eye;
+    const show = () => { if (this.hov && !this.state.eyeOn) this.setState({ eyeOn: true }); };
     return {
       eyeO: on ? 1 : 0, eyeS: on ? 1 : 1.06,
-      eyeRef: (el) => { if (!el || this.eye === el) return; this.eye = el;
-        el.addEventListener('playing', () => { if (this.hov) this.setState({ eyeOn: true }); }); },
-      eyeIn: () => { const e = this.eye; this.hov = true; if (!e) return; clearTimeout(this.tOut);
-        if (!e.paused && !e.ended) { this.setState({ eyeOn: true }); return; }
-        try { e.currentTime = 0; } catch (x) {} e.muted = false;
-        const p = e.play(); if (p && p.catch) p.catch(() => { e.muted = true; e.play(); }); },
-      eyeOut: () => { this.hov = false; this.setState({ eyeOn: false });
+      eyeRef: (el) => { if (el) this.eye = el; },
+      eyeIn: (e) => { const v = vid(e); this.hov = true; clearTimeout(this.tOut); if (!v) return; this.eye = v;
+        v.muted = true; v.defaultMuted = true;
+        if (v.paused || v.ended) { try { v.currentTime = 0; } catch (x) {} }
+        const p = v.play(); if (p && p.then) p.then(show, show);
+        v.addEventListener('playing', show, { once: true });
+        clearTimeout(this.tShow); this.tShow = setTimeout(show, 350); },
+      eyeOut: () => { this.hov = false; clearTimeout(this.tShow); this.setState({ eyeOn: false });
         clearTimeout(this.tOut); this.tOut = setTimeout(() => { if (!this.hov && this.eye) this.eye.pause(); }, 700); },
     };
   }
