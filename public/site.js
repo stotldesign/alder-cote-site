@@ -71,7 +71,8 @@ class DCLogic {
     const b = document.body;
     b.style.transformOrigin = cx + 'px ' + cy + 'px';
     b.style.transition = 'transform ' + IN + 'ms cubic-bezier(.5,0,.25,1)';
-    requestAnimationFrame(() => requestAnimationFrame(() => { b.style.transform = 'translate(' + (vw / 2 - cx) + 'px,' + (vh / 2 - cy) + 'px) rotate(' + (-ang) + 'rad) scale(' + S + ')'; }));
+    void b.offsetWidth;   // commit the start state, then animate (no frame callbacks, so a background tab can't replay it late)
+    b.style.transform = 'translate(' + (vw / 2 - cx) + 'px,' + (vh / 2 - cy) + 'px) rotate(' + (-ang) + 'rad) scale(' + S + ')';
     const t0 = Date.now();
     page.then((html) => new Promise((ok) => setTimeout(() => ok(html), Math.max(0, IN + 20 - (Date.now() - t0))))).then((html) => {
       const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -107,10 +108,9 @@ class DCLogic {
       if (hq) { hq.style.opacity = '0'; hq.style.transition = 'opacity .5s ease'; }
       const rest = root ? [...root.children].filter((n) => n.tagName !== 'VIDEO') : [];
       rest.forEach((n) => { n.style.transition = 'none'; n.style.opacity = '0'; });
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        v.style.transition = 'transform ' + OUT + 'ms cubic-bezier(.45,0,.15,1)'; v.style.transform = 'scale(1)';
-        rest.forEach((n) => { n.style.transition = 'opacity .9s ease .45s'; n.style.opacity = '1'; });
-      }));
+      void v.offsetWidth;
+      v.style.transition = 'transform ' + OUT + 'ms cubic-bezier(.45,0,.15,1)'; v.style.transform = 'scale(1)';
+      rest.forEach((n) => { n.style.transition = 'opacity .9s ease .45s'; n.style.opacity = '1'; });
       // hand over to the sharp copy once it can play from the same moment
       if (hq) {
         const done = () => { v.pause(); v.remove(); if (root) root.style.background = ''; };
