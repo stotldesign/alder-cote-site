@@ -40,6 +40,7 @@ class DCLogic {
       bind();
     };
     const fit = () => { if (!width) return; const d = document.documentElement;
+      if (height === 'fill') { const z = d.clientWidth / width; host.style.zoom = z; host.style.setProperty('--acvh', (d.clientHeight / z) + 'px'); return; }
       host.style.zoom = height ? Math.min(1, d.clientWidth / width, d.clientHeight / height) : Math.min(1, d.clientWidth / width); };
     fit(); window.addEventListener('resize', fit);
     c.__r();
