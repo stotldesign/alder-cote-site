@@ -50,7 +50,7 @@ class C0 extends DCLogic {
       eyeO: on ? 1 : 0, eyeS: on ? 1 : 1.06,
       eyeRef: (el) => { if (el && this.eye !== el) { this.eye = el; go(el); } },
       eyeIn: (e) => { const v = vid(e); if (v) { this.eye = v; try { v.currentTime = 0; } catch (x) {} go(v); } if (!this.state.eyeOn) this.setState({ eyeOn: true }); },
-      eyeOut: () => { if (this.state.eyeOn) this.setState({ eyeOn: false }); },
+      eyeOut: () => { if (document.documentElement.classList.contains('ac-zooming')) return; if (this.state.eyeOn) this.setState({ eyeOn: false }); },
     };
   }
 }
@@ -77,7 +77,7 @@ class C1 extends DCLogic {
       eyeO: on ? 1 : 0, eyeS: on ? 1 : 1.06,
       eyeRef: (el) => { if (el && this.eye !== el) { this.eye = el; go(el); } },
       eyeIn: (e) => { const v = vid(e); if (v) { this.eye = v; try { v.currentTime = 0; } catch (x) {} go(v); } if (!this.state.eyeOn) this.setState({ eyeOn: true }); },
-      eyeOut: () => { if (this.state.eyeOn) this.setState({ eyeOn: false }); },
+      eyeOut: () => { if (document.documentElement.classList.contains('ac-zooming')) return; if (this.state.eyeOn) this.setState({ eyeOn: false }); },
     };
   }
 }

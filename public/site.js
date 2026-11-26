@@ -16,8 +16,8 @@ class DCLogic {
     if (ac.length !== bc.length) { a.innerHTML = b.innerHTML; return; }
     for (let i = 0; i < ac.length; i++) patch(ac[i], bc[i]);
   }
-  window.dcBoot = function (Component, tplId, width, height) {
-    const host = document.getElementById('app');
+  window.dcBoot = function (Component, tplId, width, height, hostEl) {
+    const host = hostEl || document.getElementById('app');
     const src = document.getElementById(tplId).textContent
       .replace(/\s(on[A-Za-z]+)="\{\{\s*([\w.$]+)\s*\}\}"/g, (m, ev, k) => ` data-ev-${ev.slice(2).toLowerCase()}="${k}"`)
       .replace(/\sref="\{\{\s*([\w.$]+)\s*\}\}"/g, ' data-ref="$1"');
@@ -42,61 +42,86 @@ class DCLogic {
       host.style.zoom = height ? Math.min(1, d.clientWidth / width, d.clientHeight / height) : Math.min(1, d.clientWidth / width); };
     fit(); window.addEventListener('resize', fit);
     c.__r();
+    window.__acPage = c;
     if (window.acArrive) window.acArrive(host);
+    return c;
   };
 })();
 
-/* page transition: clicking a link marked data-zoom lifts its playing video out of the photo and grows it, straightening,
-   until it fills the window exactly as the next page shows it; the next page opens on that same frame and plays on */
+/* page transition: clicking a link marked data-zoom flies the camera into the photo until we're inside the picture;
+   the next page is loaded into this same document around the very same playing video, which then pulls back to show
+   the whole frame. no reload, no pause. on the next page a sharper copy of the film quietly takes over once it's ready. */
 (function () {
-  const KEY = 'ac-zoom', EASE = 'cubic-bezier(.65,0,.2,1)', DUR = 950;
-  try { const st = document.createElement('style'); st.textContent = '@view-transition{navigation:auto}'; document.head.appendChild(st); } catch (x) {}
+  const IN = 1050, OUT = 1250;
+  const vids = (root) => root ? [...root.querySelectorAll('video')] : [];
+  window.addEventListener('popstate', () => location.reload());
   document.addEventListener('click', (e) => {
     const a = e.target.closest && e.target.closest('a[data-zoom]');
     if (!a || e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const v = a.querySelector('video'); if (!v) return;
+    const v = a.querySelector('video'); if (!v || !window.fetch || !window.DOMParser) return;
     e.preventDefault();
-    const href = a.getAttribute('href'), vw = innerWidth, vh = innerHeight;
-    const host = document.getElementById('app'), z = parseFloat(getComputedStyle(host).zoom) || 1;
+    const href = a.getAttribute('href'), page = fetch(href).then((r) => { if (!r.ok) throw 0; return r.text(); });
+    document.documentElement.classList.add('ac-zooming');
+    const vid = v.parentNode; vid.style.opacity = '1'; v.style.transform = 'none'; v.muted = true; { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+    const vw = innerWidth, vh = innerHeight, host = document.getElementById('app'), z = parseFloat(getComputedStyle(host).zoom) || 1;
     const box = a.getBoundingClientRect(), w = a.offsetWidth * z, h = a.offsetHeight * z;
     const m = getComputedStyle(a).transform, ang = m && m !== 'none' ? Math.atan2(+m.split(',')[1], +m.split('(')[1].split(',')[0]) : 0;
     const cx = box.left + box.width / 2, cy = box.top + box.height / 2;
-    // dark behind, page pushes in a little
-    const back = document.createElement('div'); back.className = 'ac-veil';
-    back.style.cssText = 'position:fixed;inset:0;background:#111111;opacity:0;transition:opacity .7s ease .1s;z-index:2147483646;pointer-events:none';
-    // the frame that grows: starts exactly over the photo, with its white edge and its tilt
-    const frame = document.createElement('div'); frame.className = 'ac-veil';
-    frame.style.cssText = 'position:fixed;left:' + (cx - w / 2) + 'px;top:' + (cy - h / 2) + 'px;width:' + w + 'px;height:' + h + 'px;transform:rotate(' + ang + 'rad);' +
-      'border:' + Math.max(1, 2 * z) + 'px solid #FFFFFF;box-sizing:border-box;overflow:hidden;background:#111111;z-index:2147483647;pointer-events:none;' +
-      'transition:left ' + DUR + 'ms ' + EASE + ',top ' + DUR + 'ms ' + EASE + ',width ' + DUR + 'ms ' + EASE + ',height ' + DUR + 'ms ' + EASE + ',transform ' + DUR + 'ms ' + EASE + ',border-width ' + DUR + 'ms ' + EASE;
-    document.documentElement.appendChild(back); document.documentElement.appendChild(frame);
-    // move the playing video itself, so not a single frame is lost
-    v.style.cssText = 'display:block;width:100%;height:100%;object-fit:cover;transform:none;transition:none';
-    frame.appendChild(v); v.muted = true; const p = v.play(); if (p && p.catch) p.catch(() => {});
-    const b = document.body; b.style.transformOrigin = cx + 'px ' + cy + 'px'; b.style.transition = 'transform ' + DUR + 'ms ' + EASE;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      frame.style.left = '0px'; frame.style.top = '0px'; frame.style.width = vw + 'px'; frame.style.height = vh + 'px';
-      frame.style.transform = 'rotate(0rad)'; frame.style.borderWidth = '0px'; back.style.opacity = '1'; b.style.transform = 'scale(1.12)';
-    }));
-    setTimeout(() => {
-      const d = { t: v.currentTime, at: Date.now(), still: '' };
-      try { const c = document.createElement('canvas'), k = Math.min(1, 1280 / (v.videoWidth || 1280)); c.width = Math.round((v.videoWidth || 1280) * k); c.height = Math.round((v.videoHeight || 720) * k);
-        c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); d.still = c.toDataURL('image/jpeg', 0.82); } catch (x) {}
-      try { sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (x) { try { d.still = ''; sessionStorage.setItem(KEY, JSON.stringify(d)); } catch (y) {} }
-      location.href = href;
-    }, DUR + 40);
+    const S = Math.max(vw / w, vh / h) * 1.25;                                 // well past the edges of the photo
+    const b = document.body;
+    b.style.transformOrigin = cx + 'px ' + cy + 'px';
+    b.style.transition = 'transform ' + IN + 'ms cubic-bezier(.5,0,.25,1)';
+    requestAnimationFrame(() => requestAnimationFrame(() => { b.style.transform = 'translate(' + (vw / 2 - cx) + 'px,' + (vh / 2 - cy) + 'px) rotate(' + (-ang) + 'rad) scale(' + S + ')'; }));
+    const t0 = Date.now();
+    page.then((html) => new Promise((ok) => setTimeout(() => ok(html), Math.max(0, IN + 20 - (Date.now() - t0))))).then((html) => {
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const css = [...doc.querySelectorAll('style')].map((n) => n.textContent).join('\n');
+      const tpl = doc.querySelector('script[type="text/x-template"]');
+      const code = [...doc.querySelectorAll('script:not([src]):not([type])')].map((n) => n.textContent).find((t) => /class\s+C0\s+extends\s+DCLogic/.test(t));
+      if (!tpl || !code) throw 0;
+      // what the photo shows right now, in screen pixels: the film at magnification M, centred
+      const vb = getComputedStyle(vid).borderTopWidth, bw = (parseFloat(vb) || 0) * z;
+      const wi = w - 2 * bw, hi = h - 2 * bw, Vw = v.videoWidth || 1920, Vh = v.videoHeight || 1080;
+      const M = Math.max(wi / Vw, hi / Vh) * S, f = Math.max(vw / Vw, vh / Vh), k = M / f;
+      // swap the document around the playing video (all in one task, so it never stops)
+      const t = v.currentTime;
+      const st = document.createElement('style'); st.textContent = css;
+      const tp = document.createElement('script'); tp.type = 'text/x-template'; tp.id = 'ac-next-tpl'; tp.textContent = tpl.textContent;
+      const sc = document.createElement('script'); sc.textContent = code.replace(/\bC0\b/g, 'AcNext') + '\nwindow.__AcNext = AcNext;';
+      const nh = document.createElement('div');
+      document.documentElement.classList.remove('fit', 'ac-zooming');
+      b.style.transition = 'none'; b.style.transform = ''; b.style.transformOrigin = '';
+      host.remove(); [...document.querySelectorAll('style')].forEach((n) => n.remove());
+      document.head.appendChild(st); b.appendChild(tp); b.appendChild(sc);
+      nh.id = 'app'; b.appendChild(nh);
+      window.dcBoot(window.__AcNext, 'ac-next-tpl', 0, 0, nh);
+      document.title = doc.title || document.title;
+      history.pushState({}, '', href);
+      const root = nh.firstElementChild, hq = vids(nh)[0];
+      // the photo's own video sits underneath the new page and keeps playing; the new page's sharper copy waits hidden
+      v.removeAttribute('style');
+      v.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;object-fit:cover;z-index:0;pointer-events:none;transform-origin:50% 50%;transform:scale(' + k + ')';
+      b.insertBefore(v, nh); { const p = v.play(); if (p && p.catch) p.catch(() => {}); }
+      nh.style.position = 'relative'; nh.style.zIndex = '1';
+      if (root) root.style.background = 'transparent';
+      if (hq) { hq.style.opacity = '0'; hq.style.transition = 'opacity .5s ease'; }
+      const rest = root ? [...root.children].filter((n) => n.tagName !== 'VIDEO') : [];
+      rest.forEach((n) => { n.style.transition = 'none'; n.style.opacity = '0'; });
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        v.style.transition = 'transform ' + OUT + 'ms cubic-bezier(.45,0,.15,1)'; v.style.transform = 'scale(1)';
+        rest.forEach((n) => { n.style.transition = 'opacity .9s ease .45s'; n.style.opacity = '1'; });
+      }));
+      // hand over to the sharp copy once it can play from the same moment
+      if (hq) {
+        const done = () => { v.pause(); v.remove(); if (root) root.style.background = ''; };
+        const sync = () => { try { hq.currentTime = (v.currentTime + 0.35) % (hq.duration || 1e9); } catch (x) {} };
+        let tries = 0;
+        const ready = () => { if (Date.now() - t0 < IN + OUT) { setTimeout(ready, 120); return; }
+          const d = Math.abs(hq.currentTime - v.currentTime); if (d > 0.2 && tries++ < 6) { sync(); setTimeout(ready, 400); return; }
+          hq.style.opacity = '1'; setTimeout(done, 600); };
+        const start = () => { sync(); const p = hq.play(); if (p && p.catch) p.catch(() => {}); hq.addEventListener('playing', ready, { once: true }); };
+        if (hq.readyState >= 1) start(); else hq.addEventListener('loadedmetadata', start, { once: true });
+      }
+    }).catch(() => { location.href = href; });
   });
-  window.addEventListener('pageshow', (e) => { if (e.persisted && document.querySelector('.ac-veil')) location.reload(); });
-  window.acArrive = (host) => {
-    let d = null; try { d = JSON.parse(sessionStorage.getItem(KEY) || 'null'); sessionStorage.removeItem(KEY); } catch (x) {}
-    if (!d) return;
-    const v = host.querySelector('video'); if (!v) return;
-    if (d.still) v.poster = d.still;                                   // first paint is the very frame we zoomed into
-    const seek = () => { const t = d.t + (Date.now() - d.at) / 1000; try { v.currentTime = v.duration ? t % v.duration : t; } catch (x) {} const p = v.play(); if (p && p.catch) p.catch(() => {}); };
-    if (v.readyState >= 1) seek(); else v.addEventListener('loadedmetadata', seek, { once: true });
-    const root = host.firstElementChild; if (!root) return;           // the words come in over the picture
-    const rest = [...root.children].filter((n) => n !== v && !n.contains(v));
-    rest.forEach((n) => { n.style.transition = 'none'; n.style.opacity = '0'; });
-    requestAnimationFrame(() => requestAnimationFrame(() => rest.forEach((n) => { n.style.transition = 'opacity .8s ease .15s'; n.style.opacity = '1'; })));
-  };
 })();
