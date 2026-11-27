@@ -10,8 +10,9 @@ class DCLogic {
   function patch(a, b) {
     if (a.nodeType === 3) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
     if (a.nodeType !== 1 || b.nodeType !== 1) return;
-    for (const at of b.attributes) if (a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
-    for (const at of [...a.attributes]) if (!b.hasAttribute(at.name)) a.removeAttribute(at.name);
+    const keep = a.__acStream ? 'src' : '';   // a streaming film's source is set by the player, not the template
+    for (const at of b.attributes) if (at.name !== keep && a.getAttribute(at.name) !== at.value) a.setAttribute(at.name, at.value);
+    for (const at of [...a.attributes]) if (at.name !== keep && !b.hasAttribute(at.name)) a.removeAttribute(at.name);
     const ac = a.childNodes, bc = b.childNodes;
     if (ac.length !== bc.length) { a.innerHTML = b.innerHTML; return; }
     for (let i = 0; i < ac.length; i++) patch(ac[i], bc[i]);
@@ -38,6 +39,7 @@ class DCLogic {
       else { const t = document.createElement('div'); t.innerHTML = s; const a = host.childNodes, b = t.childNodes;
         if (a.length !== b.length) host.innerHTML = s; else for (let i = 0; i < a.length; i++) patch(a[i], b[i]); }
       bind();
+      if (window.acStreams) window.acStreams(host);
     };
     const fit = () => { if (!width) return; const d = document.documentElement;
       if (height === 'fill') { const z = d.clientWidth / width; host.style.zoom = z; host.style.setProperty('--acvh', (d.clientHeight / z) + 'px'); return; }
@@ -48,6 +50,51 @@ class DCLogic {
     if (window.acArrive) window.acArrive(host);
     return c;
   };
+})();
+
+/* the big films stream adaptively: each is cut into short segments at three qualities, and the player starts at one the
+   connection can carry, then climbs to full resolution as soon as it can keep up — sharp without stalling.
+   <video data-hls="…/master.m3u8" data-mp4="…mp4">: hls.js where the browser has Media Source, Safari's own player
+   otherwise, and the plain mp4 if neither works. Quality is capped at what the screen can actually show. */
+(function () {
+  const LIB = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.20/dist/hls.light.min.js';
+  let lib = null;
+  const load = () => lib || (lib = new Promise((ok, no) => {
+    if (window.Hls) return ok(window.Hls);
+    const s = document.createElement('script'); s.src = LIB; s.async = true;
+    s.onload = () => (window.Hls ? ok(window.Hls) : no()); s.onerror = no; document.head.appendChild(s);
+  }));
+  const go = (v) => { if (v.autoplay) { const p = v.play(); if (p && p.catch) p.catch(() => {}); } };
+  const plain = (v, url, how) => { v.__acStream = how; v.src = url; go(v); };
+  function attach(v) {
+    if (v.__acStream) return;
+    const url = v.dataset.hls, mp4 = v.dataset.mp4 || '';
+    v.__acStream = 'pending';
+    const mse = window.MediaSource || window.ManagedMediaSource;
+    if (!mse && v.canPlayType('application/vnd.apple.mpegurl')) return plain(v, url, 'native');   // older iPhones
+    load().then((Hls) => {
+      if (!Hls.isSupported()) throw 0;
+      const hls = new Hls({ abrEwmaDefaultEstimate: 6e6, maxBufferLength: 30, maxMaxBufferLength: 60, startFragPrefetch: true, capLevelOnFPSDrop: true });
+      v.__acStream = hls;
+      hls.on(Hls.Events.MANIFEST_PARSED, (e, d) => {   // no point fetching more pixels than the screen has
+        const want = Math.max(screen.width, screen.height) * (window.devicePixelRatio || 1) * 1.15;
+        let cap = 0; d.levels.forEach((l, i) => { if (l.width <= want) cap = i; });
+        hls.autoLevelCapping = cap; go(v);
+      });
+      let media = 0, net = 0;
+      hls.on(Hls.Events.ERROR, (e, d) => {
+        if (!d.fatal) return;
+        if (d.type === Hls.ErrorTypes.NETWORK_ERROR && net++ < 3 && !/manifest/i.test(d.details)) hls.startLoad();
+        else if (d.type === Hls.ErrorTypes.MEDIA_ERROR && media++ < 2) hls.recoverMediaError();
+        else { hls.destroy(); v.removeAttribute('src'); if (mp4) plain(v, mp4, 'mp4'); }
+      });
+      hls.loadSource(url); hls.attachMedia(v);
+    }).catch(() => {
+      if (v.canPlayType('application/vnd.apple.mpegurl')) plain(v, url, 'native');
+      else if (mp4) plain(v, mp4, 'mp4');
+    });
+  }
+  window.acStreams = (root) => (root || document).querySelectorAll('video[data-hls]').forEach(attach);
 })();
 
 /* page transitions between the home page and /songs, in one continuous camera move, both ways.
