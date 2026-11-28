@@ -6,7 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-<style>@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500&display=swap');:root{--page:#000000;color-scheme:light}html,body{background:var(--page)}body{margin:0;overflow-x:hidden}#app{width:max-content;margin:0 auto}a{cursor:pointer}
+<style>@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500&display=swap');:root{--page:#000000;color-scheme:light}html,body{background:var(--page)}body{margin:0;overflow-x:hidden}#app{width:max-content;margin:0 auto}a{cursor:pointer}.hs::-webkit-scrollbar{display:none}
+
 body{margin:0}
 .sp{font-family:'Times New Roman', Times, serif;color:#FCFBF7}
 .sp a{color:#FCFBF7}
@@ -70,6 +71,11 @@ class C0 extends DCLogic {
     o.flip = () => this.setState({ flipped: !f });
     o.stop = (e) => { if (e && e.stopPropagation) e.stopPropagation(); };
     o.toggle = () => { const v = this.v; if (!v) return; v.muted = on; if (!on) { const p = v.play(); if (p && p.catch) p.catch(() => {}); } this.setState({ sound: !on }); };
+    o.hwheel = (e) => {   // over a sideways strip, a vertical scroll pans it until it reaches an end
+      const el = e.currentTarget, d = e.deltaY || 0, max = el.scrollWidth - el.clientWidth;
+      if (!d || Math.abs(e.deltaX) > Math.abs(d)) return;
+      if ((d > 0 && el.scrollLeft < max - 1) || (d < 0 && el.scrollLeft > 1)) { e.preventDefault(); el.scrollLeft = Math.max(0, Math.min(max, el.scrollLeft + d)); }
+    };
     o.soundLab = on ? 'sound off' : 'sound on'; o.noteAnim = on ? 'hop .5s step-end infinite' : 'none'; o.strike = on ? 'none' : 'inline';
     [].forEach((i) => {
       o['cR' + i] = (el) => { this.c = this.c || {}; if (el) this.c[i] = el; };
